@@ -1,0 +1,319 @@
+{% extends "base.html" %}
+{% block title %}Security Scan: {{ ip }}{% endblock %}
+{% block header_title %}Device Security Assessment{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    <!-- Device Header -->
+    <div class="card mb-4 border-0 bg-white shadow-sm">
+        <div class="card-body d-flex justify-content-between align-items-center py-4">
+            <div>
+                <h6 class="text-uppercase text-muted fw-bold small mb-1">Target Device</h6>
+                <h2 class="mb-0 fw-bold text-primary font-monospace">{{ ip }}</h2>
+            </div>
+            <div class="text-end">
+                 <span id="device-status" class="badge bg-secondary fs-6 px-3 py-2 rounded-pill">Unknown Status</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Scan Status & Controls -->
+        <div class="col-lg-4 order-lg-2 mb-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom-0 pt-4 px-4">
+                    <h5 class="fw-bold mb-0">Scan Progress</h5>
+                </div>
+                <div class="card-body text-center px-4 pb-4">
+                    <div class="circular-progress-container">
+                        <div class="circular-progress">
+                            <svg viewBox="0 0 160 160">
+                                <circle class="bg" cx="80" cy="80" r="70"></circle>
+                                <circle class="fg" id="progress-circle" cx="80" cy="80" r="70" style="stroke-dashoffset: 440; stroke: var(--info-color);"></circle>
+                            </svg>
+                            <div class="percentage text-info" id="progress-text">0%</div>
+                        </div>
+                    </div>
+                    
+                    <p id="status-text" class="fw-bold mb-1">Idle</p>
+                    <p class="text-muted small mb-4">Click start to begin assessment</p>
+                    
+                    <button id="scan-button" class="btn btn-info text-white w-100 btn-modern mb-3" onclick="startDetailedScan()">
+                        <i class="bi bi-play-circle-fill"></i> Start Security Scan
+                    </button>
+                    
+                    <div id="save-section" style="display: none;">
+                        <hr>
+                        <button id="save-detailed-btn" class="btn btn-outline-success w-100 btn-modern" onclick="saveDetailedScan()">
+                            <i class="bi bi-save"></i> Save to Database
+                        </button>
+                        <div id="save-status" class="mt-2 small"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detailed Results -->
+        <div class="col-lg-8 order-lg-1 mb-4">
+            <!-- OS & Info -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="bg-light p-2 rounded-circle me-3 text-primary">
+                                    <i class="bi bi-cpu fs-4"></i>
+                                </div>
+                                <h6 class="fw-bold mb-0">Operating System</h6>
+                            </div>
+                            <ul id="os-list" class="list-unstyled mb-0 small text-muted">
+                                <li><em>Waiting for scan...</em></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="bg-light p-2 rounded-circle me-3 text-success">
+                                    <i class="bi bi-globe fs-4"></i>
+                                </div>
+                                <h6 class="fw-bold mb-0">Hostnames</h6>
+                            </div>
+                            <ul id="hostnames-list" class="list-unstyled mb-0 small text-muted">
+                                <li><em>Waiting for scan...</em></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ports & Security -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+                    <h5 class="mb-0 fw-bold"><i class="bi bi-shield-check text-primary me-2"></i> Security Analysis</h5>
+                    <span class="badge bg-light text-dark border" id="ports-count">0 Ports</span>
+                </div>
+                <div class="card-body p-0">
+                    <div id="security-summary" class="p-3 border-bottom bg-light" style="display: none;"></div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0" id="ports-table">
+                            <thead class="table-light small text-uppercase">
+                                <tr>
+                                    <th class="ps-4">Port</th>
+                                    <th>Service</th>
+                                    <th>State</th>
+                                    <th>Version</th>
+                                    <th>Risk</th>
+                                </tr>
+                            </thead>
+                            <tbody class="border-top-0">
+                                <tr>
+                                    <td colspan="4" class="text-center py-5 text-muted">
+                                        No scan data available
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let progressInterval;
+let isScanFinished = false;
+let currentScanResults = null;
+const CIRCUMFERENCE = 2 * Math.PI * 70;
+
+function pollDetailedProgress() {
+    const ip = "{{ ip }}";
+    fetch(`/api/detailed_progress/${ip}`)
+        .then(r => r.json())
+        .then(data => {
+            if (isScanFinished) return;
+
+            const progress = Math.min(100, data.progress || 0);
+            const offset = CIRCUMFERENCE - (progress / 100) * CIRCUMFERENCE;
+            
+            document.getElementById('progress-circle').style.strokeDashoffset = offset;
+            document.getElementById('progress-text').innerText = Math.round(progress) + '%';
+            document.getElementById('status-text').innerText = data.phase || "Scanning...";
+
+            if (data.result) {
+                isScanFinished = true;
+                clearInterval(progressInterval);
+                displayResults(data.result);
+                document.getElementById('scan-button').disabled = false;
+                document.getElementById('scan-button').innerHTML = '<i class="bi bi-arrow-clockwise"></i> Rescan';
+            } else if (data.error) {
+                isScanFinished = true;
+                clearInterval(progressInterval);
+                document.getElementById('status-text').innerText = "Error: " + data.error;
+                document.getElementById('progress-circle').style.stroke = "var(--danger-color)";
+                document.getElementById('scan-button').disabled = false;
+            }
+        });
+}
+
+function startDetailedScan() {
+    const btn = document.getElementById('scan-button');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Scanning...';
+    
+    document.getElementById('progress-circle').style.strokeDashoffset = CIRCUMFERENCE;
+    document.getElementById('progress-circle').style.stroke = "var(--info-color)";
+    document.getElementById('progress-text').innerText = '0%';
+    document.getElementById('status-text').innerText = 'Initializing...';
+    document.getElementById('save-section').style.display = 'none';
+    
+    isScanFinished = false;
+    if (progressInterval) clearInterval(progressInterval);
+    progressInterval = setInterval(pollDetailedProgress, 1000);
+    
+    fetch(`/api/detailed_scan/{{ ip }}`, {method: 'POST'})
+    .then(r => r.json())
+    .then(data => {
+        if (data.status && data.status.includes("progress")) {
+             // Started
+        }
+    });
+}
+
+function displayResults(details) {
+    currentScanResults = details;
+    
+    // Status
+    const statusBadge = document.getElementById('device-status');
+    statusBadge.className = details.state === 'up' ? 'badge bg-success fs-6 px-3 py-2 rounded-pill' : 'badge bg-danger fs-6 px-3 py-2 rounded-pill';
+    statusBadge.innerText = (details.state || 'unknown').toUpperCase();
+    
+    // Hostnames
+    const hostList = document.getElementById('hostnames-list');
+    hostList.innerHTML = '';
+    if (details.hostnames && details.hostnames.length) {
+        details.hostnames.forEach(h => {
+            hostList.innerHTML += `<li><strong>${h.name}</strong> <span class="text-muted">(${h.type})</span></li>`;
+        });
+    } else {
+        hostList.innerHTML = '<li>No hostnames found</li>';
+    }
+    
+    // OS
+    const osList = document.getElementById('os-list');
+    osList.innerHTML = '';
+    if (details.osmatch && details.osmatch.length) {
+        details.osmatch.slice(0, 2).forEach(os => {
+             osList.innerHTML += `<li><strong>${os.name}</strong> <span class="badge bg-light text-dark border">${os.accuracy}%</span></li>`;
+        });
+    } else {
+        osList.innerHTML = '<li>OS detection inconclusive</li>';
+    }
+    
+    // Ports
+    const tbody = document.querySelector('#ports-table tbody');
+    tbody.innerHTML = '';
+    let openPorts = 0;
+    
+    if (details.tcp) {
+        for (const [port, info] of Object.entries(details.tcp)) {
+            openPorts++;
+            let riskLevel = 'Low';
+            let riskClass = 'bg-success';
+            
+            // Simple risk heuristic
+            const p = parseInt(port);
+            const name = (info.name || '').toLowerCase();
+            
+            if ([21, 23, 445, 3389, 5900].includes(p) || name.includes('telnet') || name.includes('ftp') || name.includes('smb')) {
+                riskLevel = 'High';
+                riskClass = 'bg-danger';
+            } else if ([22, 80, 443, 8080].includes(p)) {
+                riskLevel = 'Medium';
+                riskClass = 'bg-warning text-dark';
+            }
+
+            tbody.innerHTML += `
+                <tr>
+                    <td class="ps-4"><span class="font-monospace fw-bold text-primary">${port}</span></td>
+                    <td>${info.name}</td>
+                    <td><span class="badge bg-success bg-opacity-10 text-success">OPEN</span></td>
+                    <td class="small text-muted">${info.product || ''} ${info.version || ''}</td>
+                    <td><span class="badge ${riskClass}">${riskLevel}</span></td>
+                </tr>
+            `;
+        }
+    }
+    
+    if (openPorts === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-muted">No open ports found</td></tr>`;
+    }
+    document.getElementById('ports-count').innerText = `${openPorts} Ports`;
+    
+    document.getElementById('save-section').style.display = 'block';
+}
+
+function saveDetailedScan() {
+    const btn = document.getElementById('save-detailed-btn');
+    const statusDiv = document.getElementById('save-status');
+    
+    if (!currentScanResults) return;
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Saving...';
+    
+    const saveData = {
+        results: currentScanResults,
+        hostname: currentScanResults.hostnames && currentScanResults.hostnames.length > 0 ? currentScanResults.hostnames[0].name : '',
+        state: currentScanResults.state || 'unknown',
+        device_type: 'iot_device',
+        os_info: currentScanResults.osmatch && currentScanResults.osmatch.length > 0 ? currentScanResults.osmatch[0].name : 'Unknown'
+    };
+    
+    fetch(`/api/save_detailed_scan/{{ ip }}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(saveData)
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'success') {
+            btn.innerHTML = '<i class="bi bi-check-circle"></i> Saved';
+            statusDiv.innerHTML = `<span class="text-success fw-bold">Successfully saved (ID: ${data.scan_id})</span>`;
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-save"></i> Save to Database';
+            statusDiv.innerHTML = `<span class="text-danger">Error: ${data.message}</span>`;
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-save"></i> Save to Database';
+        statusDiv.innerHTML = `<span class="text-danger">Error: ${err}</span>`;
+    });
+}
+
+// Auto start check
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const savedData = {{ saved_data|safe if saved_data else 'null' }};
+
+    if (urlParams.get('autostart') === 'true') {
+        startDetailedScan();
+    } else if (savedData) {
+        // Render saved data immediately
+        displayResults(savedData);
+        document.getElementById('status-text').innerText = "Loaded from History";
+        // Update UI to reflect this is a saved state
+        document.getElementById('progress-circle').style.strokeDashoffset = 0;
+        document.getElementById('progress-text').innerText = "100%";
+        document.getElementById('scan-button').innerHTML = '<i class="bi bi-arrow-clockwise"></i> Rescan';
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Saved Scan #{{ scan.id }}{% endblock %}
+{% block nav_history %}active{% endblock %}
+{% block header_title %}Scan Result #{{ scan.id }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header"><i class="bi bi-info-circle"></i> Meta Information</div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between px-0">
+                        <span class="text-muted">Target</span>
+                        <span class="fw-bold">{{ scan.target_range }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between px-0">
+                        <span class="text-muted">Date</span>
+                        <span>{{ scan.start_time }}</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between px-0">
+                        <span class="text-muted">Duration</span>
+                        <span>{{ scan.duration_seconds }}s</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between px-0">
+                        <span class="text-muted">Devices</span>
+                        <span class="badge bg-primary rounded-pill">{{ scan.devices_found }}</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-hdd-network"></i> Device List</span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="window.print()">
+                    <i class="bi bi-printer"></i> Print
+                </button>
+            </div>
+            <div class="card-body p-0">
+                {% if scan.devices %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4">IP Address</th>
+                                <th>Hostname</th>
+                                <th>Risk Level</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for device in scan.devices %}
+                            <tr>
+                                <td class="ps-4 fw-bold font-monospace text-primary">{{ device.ip_address }}</td>
+                                <td>{{ device.hostname or '-' }}</td>
+                                <td>
+                                    {% if device.security_risk == 'high' or device.security_risk == 'critical' %}
+                                    <span class="badge bg-danger">HIGH</span>
+                                    {% elif device.security_risk == 'medium' %}
+                                    <span class="badge bg-warning text-dark">MEDIUM</span>
+                                    {% else %}
+                                    <span class="badge bg-success">LOW</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="/scan_device/{{ device.ip_address }}" target="_blank" class="btn btn-sm btn-light border">
+                                        <i class="bi bi-arrow-right"></i> Detail
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-slash-circle display-4"></i>
+                    <p class="mt-3">No devices recorded in this scan.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
