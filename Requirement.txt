@@ -1,0 +1,5 @@
+Flask
+python-nmap
+mysql-connector-python
+psutil
+ipaddress
